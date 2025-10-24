@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Interactive Turntable (Smart Inertia)</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      background: #000;
+      overflow: hidden;
+      touch-action: none;
+    }
+
+    #viewer {
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      cursor: grab;
+      background: #000;
+    }
+
+    #viewer img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      user-select: none;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+  <div id="viewer">
+    <img id="turntable" src="images/_000.avif" alt="Turntable">
+  </div>
+
+  <script>
+    const totalFrames = 100;
+    const images = [];
+    for (let i = 0; i < totalFrames; i++) {
+      const num = String(i * 2).padStart(3, '0');
+      images.push(`images/_${num}.avif`);
+    }
+
+    const viewer = document.getElementById('viewer');
+    const image = document.getElementById('turntable');
+
+    // تحميل مسبق للصور
+    images.forEach(src => {
+      const img = new Image();
+      img.src = src;
+    });
+
+    let currentFrame = 0;
+    let velocity = 0;
+    let isDragging = false;
+    let lastX = 0;
+    let moved = false;
+    let lastMoveTime = 0;
+
+    function updateFrame() {
+      currentFrame = (currentFrame + velocity + totalFrames) % totalFrames;
+      const frameIndex = Math.round(currentFrame) % totalFrames;
+      image.src = images[frameIndex];
+    }
+
+    function animate() {
+      if (!isDragging) {
+        // 🌀 القصور الذاتي فقط لو السرعة واضحة
+        if (Math.abs(velocity) > 0.01) {
+          currentFrame = (currentFrame + velocity + totalFrames) % totalFrames;
+          velocity *= 0.97; // تباطؤ ناعم
+          updateFrame();
+        } else {
+          velocity = 0;
+        }
+      }
+      requestAnimationFrame(animate);
+    }
+    animate();
+
+    // 🖱️ ماوس
+    viewer.addEventListener('mousedown', e => {
+      e.preventDefault();
+      isDragging = true;
+      lastX = e.clientX;
+      velocity = 0;
+      moved = false;
+      viewer.style.cursor = 'grabbing';
+    });
+
+    viewer.addEventListener('mousemove', e => {
+      if (!isDragging) return;
+      const deltaX = e.clientX - lastX;
+      lastX = e.clientX;
+
+      if (deltaX === 0) return;
+      moved = true;
+      lastMoveTime = Date.now();
+      velocity = -deltaX * 0.25;
+      updateFrame();
+    });
+
+    viewer.addEventListener('mouseup', () => {
+      isDragging = false;
+      viewer.style.cursor = 'grab';
+
+      const now = Date.now();
+      const timeSinceLastMove = now - lastMoveTime;
+
+      // ⛔ لو سبت الماوس وانت ثابت (مفيش حركة آخر 50ms تقريبًا) → وقف فورًا
+      if (!moved || timeSinceLastMove > 50 || Math.abs(velocity) < 0.2) {
+        velocity = 0;
+      }
+    });
+
+    viewer.addEventListener('mouseleave', () => {
+      isDragging = false;
+      viewer.style.cursor = 'grab';
+    });
+
+    // 📱 لمس
+    viewer.addEventListener('touchstart', e => {
+      e.preventDefault();
+      isDragging = true;
+      lastX = e.touches[0].clientX;
+      velocity = 0;
+      moved = false;
+    });
+
+    viewer.addEventListener('touchmove', e => {
+      if (!isDragging) return;
+      const deltaX = e.touches[0].clientX - lastX;
+      lastX = e.touches[0].clientX;
+
+      if (deltaX === 0) return;
+      moved = true;
+      lastMoveTime = Date.now();
+      velocity = -deltaX * 0.25;
+      updateFrame();
+    });
+
+    viewer.addEventListener('touchend', e => {
+      e.preventDefault();
+      isDragging = false;
+
+      const now = Date.now();
+      const timeSinceLastMove = now - lastMoveTime;
+      if (!moved || timeSinceLastMove > 50 || Math.abs(velocity) < 0.2) {
+        velocity = 0; // تثبيت فوري
+      }
+    });
+
+    // 🚫 منع سحب الصورة نفسها
+    image.addEventListener('dragstart', e => e.preventDefault());
+  </script>
+</body>
+</html>
